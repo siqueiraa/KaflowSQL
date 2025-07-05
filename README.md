@@ -8,6 +8,8 @@ Picture this: It's 3 PM on a Friday. Your product manager walks over with "a qui
 
 You have `user_actions` in one Kafka topic and `customer_profiles` in another. In a relational database, this is a trivial `LEFT JOIN`. In the world of streaming, it's the beginning of a multi-week project involving Apache Flink or Spark Streaming, complex state management, and a new set of services to operate and monitor.
 
+KaflowSQL turns that typical Friday afternoon crisis into a 30-minute task. The entire pipeline is defined in a single YAML file — it reads from Kafka, performs the transformations, and writes to a new topic:
+
 **What if joining streams was as simple as writing SQL?**
 
 ```yaml
