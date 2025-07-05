@@ -1,0 +1,120 @@
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+output:
+  formats:
+    - format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+linters-settings:
+  govet:
+    enable:
+      - shadow
+  revive:
+    confidence: 0
+  gocyclo:
+    min-complexity: 15
+  mnd:
+    checks:
+      - argument
+      - case
+      - condition
+      - operation
+      - return
+      - assign
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+  misspell:
+    locale: US
+  lll:
+    line-length: 140
+  goimports:
+    local-prefixes: github.com/siqueiraa/KaflowSQL
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - dupImport
+      - ifElseChain
+      - octalLiteral
+      - whyNoLint
+      - wrapperFunc
+  depguard:
+    rules:
+      main:
+        deny:
+          - pkg: "github.com/sirupsen/logrus"
+            desc: "not allowed, use log package"
+        allow:
+          - $gostd
+          - github.com/siqueiraa/KaflowSQL
+          - github.com/hamba/avro/v2
+          - github.com/marcboeker/go-duckdb/v2
+          - github.com/riferrei/srclient
+          - github.com/confluentinc/confluent-kafka-go/kafka
+          - github.com/json-iterator/go
+          - github.com/segmentio/kafka-go
+          - golang.org/x/sync/singleflight
+          - gopkg.in/yaml.v3
+          - github.com/dgraph-io/badger/v4
+          - github.com/aws/aws-sdk-go-v2/aws
+          - github.com/aws/aws-sdk-go-v2/config
+          - github.com/aws/aws-sdk-go-v2/credentials
+          - github.com/aws/aws-sdk-go-v2/feature/s3/manager
+          - github.com/aws/aws-sdk-go-v2/service/s3
+          - github.com/pganalyze/pg_query_go/v6
+
+linters:
+  disable-all: true
+  enable:
+    - bodyclose
+    - copyloopvar
+    - depguard
+    - dogsled
+    - dupl
+    - errcheck
+    - exhaustive
+    - funlen
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goimports
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - lll
+    - misspell
+    - mnd
+    - nakedret
+    - noctx
+    - nolintlint
+    - revive
+    - rowserrcheck
+    - staticcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - whitespace
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - mnd
+        - funlen
+        - goconst

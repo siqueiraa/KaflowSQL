@@ -1,0 +1,167 @@
+name: Release
+
+on:
+  push:
+    tags:
+    - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  GO_VERSION: '1.24.1'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Simple changelog generation
+        echo "## Changes" > CHANGELOG.tmp
+        git log --pretty=format:"* %s (%h)" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> CHANGELOG.tmp
+        echo "" >> CHANGELOG.tmp
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body_path: CHANGELOG.tmp
+        draft: false
+        prerelease: false
+
+  build-and-upload:
+    needs: create-release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+        - linux/amd64
+        - linux/arm64
+        - darwin/amd64
+        - darwin/arm64
+        - windows/amd64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Get version
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Build with XGO
+      uses: crazy-max/ghaction-xgo@v3
+      with:
+        go_version: ${{ env.GO_VERSION }}
+        dest: dist
+        prefix: kaflowsql-${{ steps.version.outputs.VERSION }}
+        targets: ${{ matrix.target }}
+        trimpath: true
+        ldflags: -w -s -X main.Version=${{ steps.version.outputs.VERSION }}
+        pkg: ./cmd/engine
+
+    - name: Build fakegen with XGO
+      uses: crazy-max/ghaction-xgo@v3
+      with:
+        go_version: ${{ env.GO_VERSION }}
+        dest: dist
+        prefix: fakegen-${{ steps.version.outputs.VERSION }}
+        targets: ${{ matrix.target }}
+        trimpath: true
+        ldflags: -w -s -X main.Version=${{ steps.version.outputs.VERSION }}
+        pkg: ./cmd/fakegen
+
+    - name: Debug - List created files
+      run: |
+        echo "Files created by XGO:"
+        ls -la dist/
+
+    - name: Create archives
+      run: |
+        target="${{ matrix.target }}"
+        goos=$(echo $target | cut -d'/' -f1)
+        goarch=$(echo $target | cut -d'/' -f2)
+        target_name="${goos}-${goarch}"
+
+        if [ "$goos" = "windows" ]; then
+          ARCHIVE_NAME="kaflowsql-${{ steps.version.outputs.VERSION }}-${target_name}.zip"
+          # Use a subshell to cd into dist, create the zip in the parent dir, and explicitly include all files.
+          (cd dist && zip -r ../${ARCHIVE_NAME} . -i \*)
+          echo "ASSET_PATH=${ARCHIVE_NAME}" >> $GITHUB_ENV
+          echo "ASSET_NAME=${ARCHIVE_NAME}" >> $GITHUB_ENV
+          echo "CONTENT_TYPE=application/zip" >> $GITHUB_ENV
+        else
+          ARCHIVE_NAME="kaflowsql-${{ steps.version.outputs.VERSION }}-${target_name}.tar.gz"
+          # Use -C flag to tar the contents of the dist directory without cd'ing
+          tar -czf ${ARCHIVE_NAME} -C dist .
+          echo "ASSET_PATH=${ARCHIVE_NAME}" >> $GITHUB_ENV
+          echo "ASSET_NAME=${ARCHIVE_NAME}" >> $GITHUB_ENV
+          echo "CONTENT_TYPE=application/gzip" >> $GITHUB_ENV
+        fi
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ${{ env.ASSET_PATH }}
+        asset_name: ${{ env.ASSET_NAME }}
+        asset_content_type: ${{ env.CONTENT_TYPE }}
+
+  docker-release:
+    needs: create-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Get version
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Build and push Docker images
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: |
+          siqueiraa/kaflowsql:${{ steps.version.outputs.VERSION }}
+          siqueiraa/kaflowsql:latest
+        labels: |
+          org.opencontainers.image.title=KaflowSQL
+          org.opencontainers.image.description=Time-windowed streaming ETL with SQL-native temporal joins
+          org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
+          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          org.opencontainers.image.vendor=Rafael Siqueira
+        cache-from: type=gha
+        cache-to: type=gha,mode=max

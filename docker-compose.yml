@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  kaflowsql:
+    image: siqueiraa/kaflowsql:latest
+    container_name: kaflowsql
+    volumes:
+      - ./pipelines:/app/pipelines:ro
+      - ./config.yaml:/app/config.yaml:ro
+      - kaflowsql-data:/data
+    environment:
+      # Application environment
+      - LOG_LEVEL=info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "pgrep", "engine"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  kaflowsql-data:
+    driver: local

@@ -1,0 +1,25 @@
+kafka:
+  brokers:
+    - localhost:9092
+  schemaRegistry: http://localhost:8081
+  useAvro: true
+
+# Faker generator
+emitter:
+  interval: 1s
+
+state:
+  ttl: 1h
+  rocksdb:
+    path: /tmp/kaflowsql/rocksdb
+    checkpoint:
+      enabled: true
+      interval: 1m
+      s3:
+        enabled: true
+        bucket: your-kaflowsql-state-bucket
+        region: us-east-1
+        endpoint: https://s3.amazonaws.com
+        accessKey: your-aws-access-key
+        secretKey: your-aws-secret-key
+        prefix: checkpoints/

@@ -1,0 +1,55 @@
+name: transaction_enrichment
+window: 1h
+
+query: |
+  SELECT
+    t.transaction_id,
+    t.user_id,
+    t.amount,
+    t.merchant_id,
+    t.timestamp,
+    u.email,
+    u.account_type,
+    u.risk_score,
+    m.merchant_name,
+    m.category,
+    m.country
+  FROM transactions t
+  LEFT JOIN users u ON t.user_id = u.user_id
+  LEFT JOIN merchants m ON t.merchant_id = m.merchant_id
+  WHERE t.amount > 0
+
+output:
+  topic: enriched_transactions
+  format: avro
+  key: transaction_id
+  schema:
+    name: EnrichedTransaction
+    fields:
+      - {name: transaction_id, type: string}
+      - {name: user_id, type: string}
+      - {name: amount, type: double}
+      - {name: merchant_id, type: string}
+      - {name: timestamp, type: long}
+      - {name: email, type: ["null", "string"], default: null}
+      - {name: account_type, type: ["null", "string"], default: null}
+      - {name: risk_score, type: ["null", "int"], default: null}
+      - {name: merchant_name, type: ["null", "string"], default: null}
+      - {name: category, type: ["null", "string"], default: null}
+      - {name: country, type: ["null", "string"], default: null}
+
+emission:
+  type: smart
+  require:
+    - transaction_id
+    - user_id
+    - amount
+
+state:
+  events:
+    default_ttl: 1h
+    overrides:
+      transactions: 2h
+  dimensions:
+    - users
+    - merchants

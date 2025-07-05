@@ -1,0 +1,30 @@
+name: simple_example
+window: 1h
+
+query: |
+  SELECT
+    ue.user_id,
+    ue.event_type,
+    ue.event_time,
+    up.plan,
+    tx.amount AS last_tx_amount
+  FROM user_events ue
+  LEFT JOIN user_profiles up ON ue.user_id = up.user_id
+  LEFT JOIN transactions tx ON ue.user_id = tx.user_id
+
+output:
+  topic: user_enriched
+  format: json
+  key: user_id
+
+emission:
+  type: smart
+  require:
+    - plan
+    - user_id
+
+state:
+  events:
+    default_ttl: 1h
+  dimensions:
+    - user_profiles

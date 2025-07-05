@@ -1,0 +1,25 @@
+kafka:
+  brokers:
+    - ${KAFKA_BROKERS}
+  schemaRegistry: ${KAFKA_SCHEMA_REGISTRY}
+  useAvro: ${KAFKA_USE_AVRO:-true}
+
+# Faker generator (disabled in production)
+emitter:
+  interval: ${EMITTER_INTERVAL:-10s}
+
+state:
+  ttl: ${STATE_TTL:-24h}
+  rocksdb:
+    path: ${ROCKSDB_PATH:-/data/kaflowsql/rocksdb}
+    checkpoint:
+      enabled: ${CHECKPOINT_ENABLED:-true}
+      interval: ${CHECKPOINT_INTERVAL:-5m}
+      s3:
+        enabled: ${S3_ENABLED:-true}
+        bucket: ${S3_BUCKET}
+        region: ${AWS_REGION:-us-east-1}
+        endpoint: ${S3_ENDPOINT:-https://s3.amazonaws.com}
+        accessKey: ${AWS_ACCESS_KEY_ID}
+        secretKey: ${AWS_SECRET_ACCESS_KEY}
+        prefix: ${S3_PREFIX:-checkpoints/}

@@ -1,0 +1,42 @@
+name: user_activity
+window: 2h
+
+query: |
+  SELECT
+    ue.event_id,
+    ue.user_id,
+    ue.event_type,
+    ue.event_time,
+    ue.session_id,
+    ue.page_url,
+    up.email,
+    up.first_name,
+    up.last_name,
+    up.plan,
+    up.signup_date,
+    tx.last_transaction_amount,
+    tx.total_spent_30d,
+    tx.transaction_count_7d
+  FROM user_events ue
+  LEFT JOIN user_profiles up ON ue.user_id = up.user_id
+  LEFT JOIN transaction_summary tx ON ue.user_id = tx.user_id
+
+output:
+  topic: user_enriched
+  format: json
+  key: user_id
+
+emission:
+  type: smart
+  require:
+    - plan
+    - user_id
+
+state:
+  events:
+    default_ttl: 2h
+    overrides:
+      user_events: 1h
+      transaction_summary: 24h
+  dimensions:
+    - user_profiles

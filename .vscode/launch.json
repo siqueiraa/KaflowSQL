@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug with CGO",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/engine",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        // turn cgo back on for duckdb, librdkafka, pg_query_go, etc.
+        "CGO_ENABLED": "1",
+        // where your .dylibs live (if you installed via Homebrew)
+        "DYLD_LIBRARY_PATH": "/opt/homebrew/lib",
+        // so pkg-config can find librdkafka.pc, duckdb.pc, etc.
+        "PKG_CONFIG_PATH": "/opt/homebrew/lib/pkgconfig"
+      }
+    }
+  ]
+}

@@ -1,0 +1,160 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  GO_VERSION: '1.24.1'
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [ '1.24.1' ]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ matrix.go-version }}-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Verify dependencies
+      run: go mod verify
+
+    - name: Build
+      run: make build
+
+    - name: Run unit tests
+      run: make test
+
+    - name: Run tests with race detector
+      run: make test-race
+
+    - name: Run performance benchmarks
+      run: make test-bench
+
+    - name: Generate coverage report
+      run: make test-coverage-full
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        args: --timeout=5m
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      statuses: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Gosec Security Scanner
+      uses: securego/gosec@master
+      with:
+        args: '-fmt sarif -out gosec-results.sarif -stdout -verbose=text ./...'
+      continue-on-error: true
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        exit-code: '0'
+      continue-on-error: true
+
+    - name: Display Gosec scan results
+      if: always() && hashFiles('gosec-results.sarif') != ''
+      run: |
+        echo "=== Gosec Security Scan Results ==="
+        if [ -f gosec-results.sarif ]; then
+          echo "Gosec scan completed. Results saved to gosec-results.sarif"
+          echo "Note: Enable GitHub Code Scanning in repository settings to upload SARIF results"
+        fi
+
+    - name: Display Trivy scan results  
+      if: always() && hashFiles('trivy-results.sarif') != ''
+      run: |
+        echo "=== Trivy Vulnerability Scan Results ==="
+        if [ -f trivy-results.sarif ]; then
+          echo "Trivy scan completed. Results saved to trivy-results.sarif"
+          echo "Note: Enable GitHub Code Scanning in repository settings to upload SARIF results"
+        fi
+
+  build-native:
+    name: Build Native
+    runs-on: ubuntu-latest
+    needs: [ test, lint ]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Build for linux/amd64
+      env:
+        CGO_ENABLED: 1
+      run: |
+        mkdir -p dist
+        go build -ldflags="-w -s" -o dist/engine-linux-amd64 cmd/engine/main.go
+        go build -ldflags="-w -s" -o dist/fakegen-linux-amd64 cmd/fakegen/main.go
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: kaflowsql-linux-amd64
+        path: dist/
+

@@ -1,0 +1,18 @@
+kafka:
+  brokers:
+    - localhost:9092
+  schemaRegistry: http://localhost:8081
+  useAvro: false
+
+emitter:
+  interval: 1s
+
+state:
+  ttl: 1h
+  rocksdb:
+    path: /tmp/kaflowsql_test/rocksdb
+    checkpoint:
+      enabled: false
+      interval: 1m
+      s3:
+        enabled: false

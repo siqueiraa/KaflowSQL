@@ -1,0 +1,73 @@
+name: fraud_detection_prep
+window: 1h
+
+query: |
+  SELECT 
+    t.transaction_id,
+    t.user_id,
+    t.merchant_id,
+    t.amount,
+    t.currency,
+    t.timestamp,
+    t.card_type,
+    t.channel,
+    
+    -- User risk data
+    u.risk_score as user_risk_score,
+    u.account_age_days as user_account_age_days,
+    u.avg_transaction_amount as user_avg_transaction_amount,
+    u.country as user_country,
+    u.account_type as user_account_type,
+    u.kyc_status as user_kyc_status,
+    
+    -- Merchant data
+    m.merchant_name,
+    m.merchant_category,
+    m.country as merchant_country,
+    m.risk_category as merchant_risk_category,
+    m.mcc_code,
+    
+    -- Derived risk indicators
+    CASE 
+      WHEN t.country != m.country THEN true 
+      ELSE false 
+    END as cross_border,
+    
+    CASE 
+      WHEN t.amount > u.avg_transaction_amount * 5 THEN 'high_amount'
+      WHEN t.amount > u.avg_transaction_amount * 2 THEN 'moderate_amount'
+      ELSE 'normal_amount'
+    END as amount_risk_level,
+    
+    CASE
+      WHEN u.risk_score > 0.7 THEN 'high_risk_user'
+      WHEN m.risk_category = 'high' THEN 'high_risk_merchant'
+      WHEN t.amount > 1000 THEN 'high_amount'
+      ELSE 'normal'
+    END as primary_risk_flag
+    
+  FROM transactions t
+  LEFT JOIN user_profiles u ON t.user_id = u.user_id
+  LEFT JOIN merchants m ON t.merchant_id = m.merchant_id
+  WHERE t.amount > 100  -- Focus on higher-value transactions
+
+output:
+  topic: fraud_detection_input
+  format: json
+  key: transaction_id
+
+emission:
+  type: smart
+  require: 
+    - user_risk_score
+    - merchant_category
+    # Emit only when we have essential risk data
+
+state:
+  events:
+    default_ttl: 1h
+    overrides:
+      transactions: 30m      # High-volume stream, shorter retention
+  dimensions:
+    - user_profiles          # Slow-changing user risk data
+    - merchants             # Merchant metadata rarely changes
